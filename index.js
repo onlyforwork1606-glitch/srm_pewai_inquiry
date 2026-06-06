@@ -61,6 +61,13 @@ app.post("/webhook", async (req, res) => {
     const changes = entry?.changes?.[0];
     const value   = changes?.value;
 
+    // Ignore events from other phone numbers (e.g. 80339 chatbot)
+    const incomingPhoneId = value?.metadata?.phone_number_id;
+    if (incomingPhoneId && incomingPhoneId !== PHONE_NUMBER_ID) {
+      console.log(`⏭️  Skipping event for other number: ${value?.metadata?.display_phone_number}`);
+      return;
+    }
+
     if (!value?.messages?.length) {
       console.log("ℹ️  No messages in payload (status update or other event)");
       return;
