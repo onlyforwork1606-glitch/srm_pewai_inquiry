@@ -155,7 +155,7 @@ app.post("/webhook", async (req, res) => {
       } else if (btnText === "NO") {
         response = "NO";
       } else if (
-        btnText === "HAVE A QUERY" ||
+        btnText === "HAVE A QUERY " ||
         btnText === "HAVING A QUERY" ||
         btnText === "HAVING A QUERY!" ||
         btnText === "I HAVE A QUERY" ||
