@@ -13,25 +13,28 @@ const API_VERSION = "v21.0";
 const BASE_URL = `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/messages`;
 
 // ──────────────────────────────────────────
-// Image / PDF Configuration
+// Video Configuration
 // ──────────────────────────────────────────
-// 👇👇👇 REPLACE THIS URL WITH YOUR ACTUAL IMAGE OR PDF LINK 👇👇👇
-// Host the file somewhere publicly accessible and paste the URL below.
-const MEDIA_URL = process.env.MEDIA_URL || "https://example.com/your-image.jpg";
-const MEDIA_CAPTION = process.env.MEDIA_CAPTION || "Here are the program details.";
+// 👇👇👇 PASTE YOUR GOOGLE DRIVE VIDEO DIRECT LINK HERE 👇👇👇
+// To get a direct link from Google Drive:
+//   1. Right-click the video → Share → "Anyone with the link"
+//   2. Copy the file ID from the share URL
+//   3. Use this format: https://drive.google.com/uc?export=download&id=YOUR_FILE_ID
+const VIDEO_URL = process.env.VIDEO_URL || "https://drive.google.com/uc?export=download&id=YOUR_FILE_ID_HERE";
+const VIDEO_CAPTION = process.env.VIDEO_CAPTION || "B.Tech CSE – Product Engineering with AI (PEWAI) | SRM University AP";
 
 // ──────────────────────────────────────────
-// In-memory state: tracks users who clicked
-// "Have a query" and are about to type it
+// WhatsApp contact link for "Have a query"
 // ──────────────────────────────────────────
-const awaitingQuery = new Map(); // phone → true
+const CONTACT_WHATSAPP_URL =
+  "https://api.whatsapp.com/send/?phone=919949698240&text=I+want+to+know+more+about+the+SRM+AP+Btech+PEWAI+programme&type=phone_number&app_absent=0";
 
 // ══════════════════════════════════════════
 //  WhatsApp Cloud API — Sending helpers
 // ══════════════════════════════════════════
 
 /**
- * Send a plain text message to a WhatsApp user
+ * Send a plain text message
  */
 async function sendTextMessage(to, text) {
   try {
@@ -41,7 +44,7 @@ async function sendTextMessage(to, text) {
         messaging_product: "whatsapp",
         to,
         type: "text",
-        text: { body: text },
+        text: { preview_url: true, body: text },
       },
       {
         headers: {
@@ -50,7 +53,7 @@ async function sendTextMessage(to, text) {
         },
       }
     );
-    console.log(`📤 Sent text to ${to}: "${text}"`);
+    console.log(`📤 Sent text to ${to}`);
   } catch (err) {
     console.error(
       `❌ Failed to send text to ${to}:`,
@@ -60,17 +63,17 @@ async function sendTextMessage(to, text) {
 }
 
 /**
- * Send an image to a WhatsApp user
+ * Send a video message
  */
-async function sendImage(to, imageUrl, caption) {
+async function sendVideo(to, videoUrl, caption) {
   try {
     await axios.post(
       BASE_URL,
       {
         messaging_product: "whatsapp",
         to,
-        type: "image",
-        image: { link: imageUrl, caption },
+        type: "video",
+        video: { link: videoUrl, caption },
       },
       {
         headers: {
@@ -79,10 +82,50 @@ async function sendImage(to, imageUrl, caption) {
         },
       }
     );
-    console.log(`📤 Sent image to ${to}`);
+    console.log(`📤 Sent video to ${to}`);
   } catch (err) {
     console.error(
-      `❌ Failed to send image to ${to}:`,
+      `❌ Failed to send video to ${to}:`,
+      err.response?.data || err.message
+    );
+  }
+}
+
+/**
+ * Send an interactive CTA URL button message
+ * (Renders a tappable button that opens a URL)
+ */
+async function sendCtaUrlButton(to, bodyText, buttonText, url) {
+  try {
+    await axios.post(
+      BASE_URL,
+      {
+        messaging_product: "whatsapp",
+        to,
+        type: "interactive",
+        interactive: {
+          type: "cta_url",
+          body: { text: bodyText },
+          action: {
+            name: "cta_url",
+            parameters: {
+              display_text: buttonText,
+              url: url,
+            },
+          },
+        },
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${ACCESS_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    console.log(`📤 Sent CTA button to ${to}: "${buttonText}"`);
+  } catch (err) {
+    console.error(
+      `❌ Failed to send CTA button to ${to}:`,
       err.response?.data || err.message
     );
   }
@@ -149,33 +192,7 @@ app.post("/webhook", async (req, res) => {
     let queryText = "";
 
     // ─────────────────────────────────────
-    // 1. Check if user is awaiting query input
-    //    (they clicked "Have a query" previously)
-    // ─────────────────────────────────────
-    if (awaitingQuery.has(phone) && msg.type === "text") {
-      const text = msg.text?.body?.trim() || "";
-      response = "QUERY";
-      queryText = text;
-
-      // Send acknowledgement
-      await sendTextMessage(
-        phone,
-        "Thanks for your response, our executive will get in touch with you soon!"
-      );
-
-      // Clear the awaiting state
-      awaitingQuery.delete(phone);
-
-      console.log(
-        `📥 ${name || phone} → QUERY (follow-up) | "${queryText}"`
-      );
-
-      await appendToSheet({ phone, name, response, queryText, timestamp });
-      return;
-    }
-
-    // ─────────────────────────────────────
-    // 2. Button messages (template quick replies)
+    // 1. Button messages (template quick replies)
     // ─────────────────────────────────────
     if (msg.type === "button") {
       const btnText = msg.button?.text?.toUpperCase().trim();
@@ -189,12 +206,12 @@ app.post("/webhook", async (req, res) => {
         btnText === "I HAVE A QUERY" ||
         btnText === "I HAVE A QUERY!"
       )
-        response = "QUERY_PENDING";
+        response = "QUERY";
       else response = btnText;
     }
 
     // ─────────────────────────────────────
-    // 3. Interactive messages (button_reply / list_reply)
+    // 2. Interactive messages (button_reply / list_reply)
     // ─────────────────────────────────────
     else if (msg.type === "interactive") {
       const reply =
@@ -205,12 +222,12 @@ app.post("/webhook", async (req, res) => {
 
       if (id === "YES") response = "YES";
       else if (id === "NO") response = "NO";
-      else if (id === "QUERY") response = "QUERY_PENDING";
+      else if (id === "QUERY") response = "QUERY";
       else response = reply?.title || id;
     }
 
     // ─────────────────────────────────────
-    // 4. Free-text messages
+    // 3. Free-text messages
     // ─────────────────────────────────────
     else if (msg.type === "text") {
       const text = msg.text?.body?.trim() || "";
@@ -237,30 +254,32 @@ app.post("/webhook", async (req, res) => {
     // ═════════════════════════════════════
     //  Send the appropriate reply
     // ═════════════════════════════════════
+
     if (response === "YES") {
+      // 1. Send greeting with the program link
       await sendTextMessage(
         phone,
-        "Thanks for your response, we will get back to you with program details."
+        "Thanks for your interest! 🎓\n\n" +
+        "Here are the details about B.Tech CSE – Product Engineering with AI (PEWAI) at SRM University AP:\n\n" +
+        "🔗 https://www.srmap.edu.in/seas/computer-science-and-engineering/b-tech-cse-product-engineering-with-ai/\n\n" +
+        "We will get back to you with more program details soon."
       );
-      // Send image with program details
-      await sendImage(phone, MEDIA_URL, MEDIA_CAPTION);
+
+      // 2. Send the video
+      await sendVideo(phone, VIDEO_URL, VIDEO_CAPTION);
     }
 
     else if (response === "NO") {
       await sendTextMessage(phone, "Thanks for your response.");
     }
 
-    else if (response === "QUERY_PENDING") {
-      await sendTextMessage(phone, "Please mention your query below.");
-      // Mark this user as awaiting their query text
-      awaitingQuery.set(phone, true);
-    }
-
     else if (response === "QUERY") {
-      // Direct free-text query (user didn't click button first)
-      await sendTextMessage(
+      // Send message with a CTA button to contact the team
+      await sendCtaUrlButton(
         phone,
-        "Thanks for your response, our executive will get in touch with you soon!"
+        "Thank you for your interest in the programme! 🙌\n\nYou can directly connect with our team for any queries.",
+        "Contact Team 💬",
+        CONTACT_WHATSAPP_URL
       );
     }
 
