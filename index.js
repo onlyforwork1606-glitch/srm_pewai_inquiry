@@ -20,7 +20,7 @@ const BASE_URL = `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/m
 //   1. Right-click the video → Share → "Anyone with the link"
 //   2. Copy the file ID from the share URL
 //   3. Use this format: https://drive.google.com/uc?export=download&id=YOUR_FILE_ID
-const VIDEO_URL = process.env.VIDEO_URL || "https://drive.google.com/uc?export=download&id=1wSa2V9KSXNlQfqLUapQlJBSOb-3ER3QW";
+const VIDEO_URL = process.env.VIDEO_URL || "https://res.cloudinary.com/du7fyr47e/video/upload/v1780809477/SRM_UNIVERSITY_-_AP_COURSE_1_1_aoy6la.mp4";
 const VIDEO_CAPTION = process.env.VIDEO_CAPTION || "B.Tech CSE – Product Engineering with AI (PEWAI) | SRM University AP";
 
 // ──────────────────────────────────────────
