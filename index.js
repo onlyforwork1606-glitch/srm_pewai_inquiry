@@ -199,8 +199,8 @@ app.post("/webhook", async (req, res) => {
 
       if (btnText === "YES") response = "YES";
       else if (btnText === "NO") response = "NO";
+      else if (btnText === "CONTACT") response = "CONTACT";
       else if (
-        btnText === "CONTACT" ||
         btnText === "HAVE A QUERY" ||
         btnText === "HAVING A QUERY" ||
         btnText === "HAVING A QUERY!" ||
@@ -223,6 +223,7 @@ app.post("/webhook", async (req, res) => {
 
       if (id === "YES") response = "YES";
       else if (id === "NO") response = "NO";
+      else if (id === "CONTACT") response = "CONTACT";
       else if (id === "QUERY") response = "QUERY";
       else response = reply?.title || id;
     }
@@ -234,13 +235,15 @@ app.post("/webhook", async (req, res) => {
       const text = msg.text?.body?.trim() || "";
       const upper = text.toUpperCase();
 
+      // Always record whatever the user typed
+      queryText = text;
+
       if (upper === "YES") {
         response = "YES";
       } else if (upper === "NO") {
         response = "NO";
       } else {
         response = "QUERY";
-        queryText = text;
       }
     }
 
@@ -278,8 +281,18 @@ app.post("/webhook", async (req, res) => {
       );
     }
 
+    else if (response === "CONTACT") {
+      // User tapped the "Contact" button
+      await sendCtaUrlButton(
+        phone,
+        "Thank you for reaching out! 🙌\n\nYou can directly connect with our team below.",
+        "Contact Team 💬",
+        CONTACT_WHATSAPP_URL
+      );
+    }
+
     else if (response === "QUERY") {
-      // Send message with a CTA button to contact the team
+      // User sent a free-text query
       await sendCtaUrlButton(
         phone,
         "Thank you for your interest in the programme! 🙌\n\nYou can directly connect with our team for any queries.",
