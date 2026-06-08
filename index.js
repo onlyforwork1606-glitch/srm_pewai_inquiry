@@ -256,21 +256,25 @@ app.post("/webhook", async (req, res) => {
     // ═════════════════════════════════════
 
     if (response === "YES") {
-      // 1. Send greeting with the program link
+      // Send greeting with the program link and video link
       await sendTextMessage(
         phone,
         "Thanks for your interest! 🎓\n\n" +
         "Here are the details about B.Tech CSE – Product Engineering with AI (PEWAI) at SRM University AP:\n\n" +
-        "🔗 https://www.srmap.edu.in/seas/computer-science-and-engineering/b-tech-cse-product-engineering-with-ai/\n\n" +
+        "🔗 Program Info: https://www.srmap.edu.in/seas/computer-science-and-engineering/b-tech-cse-product-engineering-with-ai/\n\n" +
+        "🎥 Watch Program Video: " + VIDEO_URL + "\n\n" +
         "We will get back to you with more program details soon."
       );
-
-      // 2. Send the video
-      await sendVideo(phone, VIDEO_URL, VIDEO_CAPTION);
     }
 
     else if (response === "NO") {
-      await sendTextMessage(phone, "Thanks for your response.");
+      await sendTextMessage(
+        phone,
+        "Thanks for your response.\n\n" +
+        "You can go though about the course here:",
+        "🔗 Program Info: https://www.srmap.edu.in/seas/computer-science-and-engineering/b-tech-cse-product-engineering-with-ai/\n\n" +
+        "🎥 Watch Program Video: " + VIDEO_URL
+      );
     }
 
     else if (response === "QUERY") {
