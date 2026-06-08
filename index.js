@@ -24,7 +24,7 @@ const VIDEO_URL = process.env.VIDEO_URL || "https://res.cloudinary.com/du7fyr47e
 const VIDEO_CAPTION = process.env.VIDEO_CAPTION || "B.Tech CSE – Product Engineering with AI (PEWAI) | SRM University AP";
 
 // ──────────────────────────────────────────
-// WhatsApp contact link for "Have a query"
+// WhatsApp contact link for "Contact" button
 // ──────────────────────────────────────────
 const CONTACT_WHATSAPP_URL =
   "https://api.whatsapp.com/send/?phone=919949698240&text=I+want+to+know+more+about+the+SRM+AP+Btech+PEWAI+programme&type=phone_number&app_absent=0";
@@ -200,6 +200,7 @@ app.post("/webhook", async (req, res) => {
       if (btnText === "YES") response = "YES";
       else if (btnText === "NO") response = "NO";
       else if (
+        btnText === "CONTACT" ||
         btnText === "HAVE A QUERY" ||
         btnText === "HAVING A QUERY" ||
         btnText === "HAVING A QUERY!" ||
