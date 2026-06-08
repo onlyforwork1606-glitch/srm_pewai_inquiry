@@ -271,7 +271,7 @@ app.post("/webhook", async (req, res) => {
       await sendTextMessage(
         phone,
         "Thanks for your response.\n\n" +
-        "You can go though about the course here:",
+        "You can go through the course details here:\n\n" +
         "🔗 Program Info: https://www.srmap.edu.in/seas/computer-science-and-engineering/b-tech-cse-product-engineering-with-ai/\n\n" +
         "🎥 Watch Program Video: " + VIDEO_URL
       );
