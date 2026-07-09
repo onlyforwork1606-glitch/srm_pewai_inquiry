@@ -13,29 +13,36 @@ const API_VERSION = "v21.0";
 const BASE_URL = `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/messages`;
 
 // ──────────────────────────────────────────
-// Video Configuration
+// Startup env-var validation
 // ──────────────────────────────────────────
-// 👇👇👇 PASTE YOUR GOOGLE DRIVE VIDEO DIRECT LINK HERE 👇👇👇
-// To get a direct link from Google Drive:
-//   1. Right-click the video → Share → "Anyone with the link"
-//   2. Copy the file ID from the share URL
-//   3. Use this format: https://drive.google.com/uc?export=download&id=YOUR_FILE_ID
-const VIDEO_URL = process.env.VIDEO_URL || "https://res.cloudinary.com/du7fyr47e/video/upload/v1780809477/SRM_UNIVERSITY_-_AP_COURSE_1_1_aoy6la.mp4";
-const VIDEO_CAPTION = process.env.VIDEO_CAPTION || "B.Tech CSE – Product Engineering with AI (PEWAI) | SRM University AP";
+const REQUIRED_VARS = [
+  "WEBHOOK_VERIFY_TOKEN",
+  "WHATSAPP_ACCESS_TOKEN",
+  "WHATSAPP_PHONE_NUMBER_ID",
+  "GOOGLE_SHEET_ID",
+  "GOOGLE_SERVICE_ACCOUNT_JSON",
+];
+const missing = REQUIRED_VARS.filter((v) => !process.env[v]);
+if (missing.length) {
+  console.warn("⚠️  Missing environment variables:", missing.join(", "));
+  console.warn("   The server will start, but affected features will not work.");
+}
 
 // ──────────────────────────────────────────
-// WhatsApp contact link for "Contact" button
+// User state management (in-memory)
 // ──────────────────────────────────────────
-const CONTACT_WHATSAPP_URL =
-  "https://api.whatsapp.com/send/?phone=919949698240&text=I+want+to+know+more+about+the+SRM+AP+Btech+PEWAI+programme&type=phone_number&app_absent=0";
+const userStates = new Map();
+
+const ST_INITIAL = "INITIAL";
+const ST_AWAITING_CALL_DECISION = "AWAITING_CALL_DECISION";
+const ST_AWAITING_ADMISSION_DETAILS = "AWAITING_ADMISSION_DETAILS";
+
+const MEET_LINK = "https://meet.google.com/mhq-uice-iuq";
 
 // ══════════════════════════════════════════
 //  WhatsApp Cloud API — Sending helpers
 // ══════════════════════════════════════════
 
-/**
- * Send a plain text message
- */
 async function sendTextMessage(to, text) {
   try {
     await axios.post(
@@ -62,40 +69,7 @@ async function sendTextMessage(to, text) {
   }
 }
 
-/**
- * Send a video message
- */
-async function sendVideo(to, videoUrl, caption) {
-  try {
-    await axios.post(
-      BASE_URL,
-      {
-        messaging_product: "whatsapp",
-        to,
-        type: "video",
-        video: { link: videoUrl, caption },
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${ACCESS_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
-    console.log(`📤 Sent video to ${to}`);
-  } catch (err) {
-    console.error(
-      `❌ Failed to send video to ${to}:`,
-      err.response?.data || err.message
-    );
-  }
-}
-
-/**
- * Send an interactive CTA URL button message
- * (Renders a tappable button that opens a URL)
- */
-async function sendCtaUrlButton(to, bodyText, buttonText, url) {
+async function sendInteractiveButtons(to, bodyText, buttons) {
   try {
     await axios.post(
       BASE_URL,
@@ -104,14 +78,13 @@ async function sendCtaUrlButton(to, bodyText, buttonText, url) {
         to,
         type: "interactive",
         interactive: {
-          type: "cta_url",
+          type: "button",
           body: { text: bodyText },
           action: {
-            name: "cta_url",
-            parameters: {
-              display_text: buttonText,
-              url: url,
-            },
+            buttons: buttons.map((b) => ({
+              type: "reply",
+              reply: { id: b.id, title: b.title },
+            })),
           },
         },
       },
@@ -122,10 +95,10 @@ async function sendCtaUrlButton(to, bodyText, buttonText, url) {
         },
       }
     );
-    console.log(`📤 Sent CTA button to ${to}: "${buttonText}"`);
+    console.log(`📤 Sent interactive buttons to ${to}`);
   } catch (err) {
     console.error(
-      `❌ Failed to send CTA button to ${to}:`,
+      `❌ Failed to send buttons to ${to}:`,
       err.response?.data || err.message
     );
   }
@@ -135,9 +108,6 @@ async function sendCtaUrlButton(to, bodyText, buttonText, url) {
 //  Webhook endpoints
 // ══════════════════════════════════════════
 
-// ──────────────────────────────────────────
-// GET /webhook → Meta verification
-// ──────────────────────────────────────────
 app.get("/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
@@ -151,9 +121,6 @@ app.get("/webhook", (req, res) => {
   return res.sendStatus(403);
 });
 
-// ──────────────────────────────────────────
-// POST /webhook → Incoming messages
-// ──────────────────────────────────────────
 app.post("/webhook", async (req, res) => {
   res.sendStatus(200);
 
@@ -166,12 +133,10 @@ app.post("/webhook", async (req, res) => {
 
     const incomingPhoneId = value?.metadata?.phone_number_id;
 
-    // Ignore other WhatsApp numbers completely
     if (incomingPhoneId && incomingPhoneId !== PHONE_NUMBER_ID) {
       return;
     }
 
-    // Ignore status updates
     if (!value?.messages?.length) {
       return;
     }
@@ -188,133 +153,150 @@ app.post("/webhook", async (req, res) => {
       timeZone: "Asia/Kolkata",
     });
 
-    let response = "";
+    // Initialise or retrieve user state
+    if (!userStates.has(phone)) {
+      userStates.set(phone, { state: ST_INITIAL });
+    }
+    const userState = userStates.get(phone);
+
+    // ─────────────────────────────────────
+    //  Extract reply ID or free text
+    // ─────────────────────────────────────
+    let replyId = "";
     let queryText = "";
 
-    // ─────────────────────────────────────
-    // 1. Button messages (template quick replies)
-    // ─────────────────────────────────────
     if (msg.type === "button") {
-      const btnText = msg.button?.text?.toUpperCase().trim();
-
-      if (btnText === "YES") response = "YES";
-      else if (btnText === "NO") response = "NO";
-      else if (btnText === "CONTACT") response = "CONTACT";
-      else if (
-        btnText === "HAVE A QUERY" ||
-        btnText === "HAVING A QUERY" ||
-        btnText === "HAVING A QUERY!" ||
-        btnText === "I HAVE A QUERY" ||
-        btnText === "I HAVE A QUERY!"
-      )
-        response = "QUERY";
-      else response = btnText;
-    }
-
-    // ─────────────────────────────────────
-    // 2. Interactive messages (button_reply / list_reply)
-    // ─────────────────────────────────────
-    else if (msg.type === "interactive") {
-      const reply =
-        msg.interactive?.button_reply ||
-        msg.interactive?.list_reply;
-
-      const id = reply?.id?.toUpperCase();
-
-      if (id === "YES") response = "YES";
-      else if (id === "NO") response = "NO";
-      else if (id === "CONTACT") response = "CONTACT";
-      else if (id === "QUERY") response = "QUERY";
-      else response = reply?.title || id;
-    }
-
-    // ─────────────────────────────────────
-    // 3. Free-text messages
-    // ─────────────────────────────────────
-    else if (msg.type === "text") {
-      const text = msg.text?.body?.trim() || "";
-      const upper = text.toUpperCase();
-
-      // Always record whatever the user typed
-      queryText = text;
-
-      if (upper === "YES") {
-        response = "YES";
-      } else if (upper === "NO") {
-        response = "NO";
-      } else {
-        response = "QUERY";
-      }
-    }
-
-    // Other message types
-    else {
-      response = "OTHER";
-      queryText = `[${msg.type}]`;
-    }
-
-    if (!response) return;
-
-    // ═════════════════════════════════════
-    //  Send the appropriate reply
-    // ═════════════════════════════════════
-
-    if (response === "YES") {
-      // Send greeting with the program link and video link
-      await sendTextMessage(
-        phone,
-        "Thanks for your interest! 🎓\n\n" +
-        "Here are the details about B.Tech CSE – Product Engineering with AI (PEWAI) at SRM University AP:\n\n" +
-        "🔗 Program Info: https://www.srmap.edu.in/seas/computer-science-and-engineering/b-tech-cse-product-engineering-with-ai/\n\n" +
-        "🎥 Watch Program Video: " + VIDEO_URL + "\n\n" +
-        "We will get back to you with more program details soon."
-      );
-    }
-
-    else if (response === "NO") {
-      await sendTextMessage(
-        phone,
-        "Thanks for your response.\n\n" +
-        "You can go through the course details here:\n\n" +
-        "🔗 Program Info: https://www.srmap.edu.in/seas/computer-science-and-engineering/b-tech-cse-product-engineering-with-ai/\n\n" +
-        "🎥 Watch Program Video: " + VIDEO_URL
-      );
-    }
-
-    else if (response === "CONTACT") {
-      // User tapped the "Contact" button
-      await sendCtaUrlButton(
-        phone,
-        "Thank you for reaching out! 🙌\n\nYou can directly connect with our team below.",
-        "Contact Team 💬",
-        CONTACT_WHATSAPP_URL
-      );
-    }
-
-    else if (response === "QUERY") {
-      // User sent a free-text query
-      await sendCtaUrlButton(
-        phone,
-        "Thank you for your interest in the programme! 🙌\n\nYou can directly connect with our team for any queries.",
-        "Contact Team 💬",
-        CONTACT_WHATSAPP_URL
-      );
+      // From template quick-reply buttons (the initial broadcast)
+      const text = (msg.button?.text || "").toUpperCase().trim();
+      if (text.includes("ATTEND") || text === "YES") replyId = "ATTEND_YES";
+      else if (text.includes("DETAIL")) replyId = "NEED_DETAILS";
+      else if (text.includes("GUIDANCE") || text.includes("ADMISSION")) replyId = "NEED_GUIDANCE";
+      else replyId = text;
+    } else if (msg.type === "interactive") {
+      const reply = msg.interactive?.button_reply || msg.interactive?.list_reply;
+      replyId = reply?.id || "";
+    } else if (msg.type === "text") {
+      queryText = msg.text?.body?.trim() || "";
+    } else {
+      return;
     }
 
     console.log(
-      `📥 ${name || phone} → ${response}${
-        queryText ? ` | "${queryText}"` : ""
-      }`
+      `📥 ${name || phone} | state=${userState.state} | replyId=${replyId} | text="${queryText}"`
     );
 
-    await appendToSheet({
-      phone,
-      name,
-      response,
-      queryText,
-      timestamp,
-    });
+    // ─────────────────────────────────────
+    //  Handle message based on state
+    // ─────────────────────────────────────
+    let response = "";
+    let leadStatus = "";
 
+    if (userState.state === ST_INITIAL) {
+      const lowerText = queryText.toLowerCase();
+
+      // Option 1: Yes, I will attend
+      if (
+        replyId === "ATTEND_YES" ||
+        lowerText.includes("attend") || lowerText === "yes"
+      ) {
+        await sendTextMessage(
+          phone,
+          "Thank you for confirming. Please join the session on 11 July at 03:00 PM using this link:\n" +
+          MEET_LINK + "\n\n" +
+          "We recommend joining with your parents."
+        );
+        response = "Yes, I will attend";
+        leadStatus = "Confirmed for Session";
+        userStates.delete(phone);
+      }
+      // Option 2: Need more details
+      else if (
+        replyId === "NEED_DETAILS" ||
+        lowerText.includes("detail") || lowerText.includes("more info")
+      ) {
+        await sendTextMessage(
+          phone,
+          "B.Tech CSE in Product Engineering with AI is a specialised CSE pathway focused on AI-powered product building, real-world problem solving, industry exposure and career readiness.\n\n" +
+          "Would you like an admission counsellor to call you?"
+        );
+        await sendInteractiveButtons(
+          phone,
+          "Choose an option:",
+          [
+            { id: "call_yes", title: "Yes, call me" },
+            { id: "attend_session", title: "I will attend the session first" },
+          ]
+        );
+        userState.state = ST_AWAITING_CALL_DECISION;
+        response = "Need more details";
+      }
+      // Option 3: Need admission guidance
+      else if (
+        replyId === "NEED_GUIDANCE" ||
+        lowerText.includes("guidance") || lowerText.includes("admission")
+      ) {
+        await sendTextMessage(
+          phone,
+          "Sure. Our admission counsellor will guide you.\n\n" +
+          "Please share:\n" +
+          "Student Name:\n" +
+          "SRMJEE Application Number:\n" +
+          "Parent Contact Number:\n" +
+          "Preferred Call Time:"
+        );
+        userState.state = ST_AWAITING_ADMISSION_DETAILS;
+        response = "Need Admission Guidance";
+      } else {
+        return;
+      }
+    } else if (userState.state === ST_AWAITING_CALL_DECISION) {
+      const lowerText = queryText.toLowerCase();
+
+      if (replyId === "call_yes" || lowerText.includes("call") || lowerText.includes("yes") || lowerText.includes("call me")) {
+        await sendTextMessage(
+          phone,
+          "Thank you. Our counsellor will reach out to you shortly."
+        );
+        response = "Need more details → Yes, call me";
+        leadStatus = "Counsellor Call Required";
+        userStates.delete(phone);
+      } else if (replyId === "attend_session" || lowerText.includes("attend") || lowerText.includes("session")) {
+        await sendTextMessage(
+          phone,
+          "Great! Please join the session on 11 July at 03:00 PM using this link:\n" +
+          MEET_LINK + "\n\n" +
+          "We look forward to seeing you."
+        );
+        response = "Need more details → I will attend the session";
+        leadStatus = "Warm Lead";
+        userStates.delete(phone);
+      } else {
+        return;
+      }
+    } else if (userState.state === ST_AWAITING_ADMISSION_DETAILS) {
+      await sendTextMessage(
+        phone,
+        "Noted, we will get back to you."
+      );
+      response = "Need Admission Guidance";
+      leadStatus = "Hot Lead / Immediate Call";
+      userStates.delete(phone);
+    }
+
+    // ─────────────────────────────────────
+    //  Log to Google Sheets
+    // ─────────────────────────────────────
+    if (response) {
+      console.log(`✅ ${name || phone} → ${response} | Lead: ${leadStatus}`);
+      await appendToSheet({
+        phone,
+        name,
+        response,
+        leadStatus,
+        queryText,
+        timestamp,
+      });
+    }
   } catch (err) {
     console.error("❌ Webhook processing error:", err);
   }

@@ -2,7 +2,7 @@ services:
   - type: web
     name: whatsapp-tracker
     env: node
-    plan: starter          # $7/month — stays awake 24/7 (important for webhooks)
+    plan: free          # $7/month — stays awake 24/7 (important for webhooks)
     buildCommand: npm install
     startCommand: node index.js
     envVars:
