@@ -248,7 +248,7 @@ app.post("/webhook", async (req, res) => {
       ) {
         await sendTextMessage(
           phone,
-          "Thank you for confirming. Please join the session on 10 July at 03:00 PM using this link:\n" +
+          "Thank you for confirming. Please join the session tomorrow 1July at 10:00 AM using this link:\n" +
           MEET_LINK + "\n\n" +
           "We recommend joining with your parents."
         );
@@ -263,7 +263,7 @@ app.post("/webhook", async (req, res) => {
       ) {
         await sendTextMessage(
           phone,
-          "Thank you for confirming. Please join the session on 10 July at 03:00 PM using this link:\n" +
+          "Thank you for confirming. Please join the session on 10 July at 10:00 AM using this link:\n" +
           MEET_LINK + "\n\n" +
           "We recommend joining with your parents."
         );
@@ -309,6 +309,7 @@ app.post("/webhook", async (req, res) => {
         userState.state = ST_AWAITING_ADMISSION_DETAILS;
         response = "Need Admission Guidance";
       } else {
+        console.warn(`⚠️ Unmatched replyId in ST_INITIAL: "${replyId}"`);
         return;
       }
     } else if (userState.state === ST_AWAITING_CALL_DECISION) {
@@ -325,7 +326,7 @@ app.post("/webhook", async (req, res) => {
       } else if (replyId === "attend_session" || lowerText.includes("attend") || lowerText.includes("session")) {
         await sendTextMessage(
           phone,
-          "Great! Please join the session on 10 July at 03:00 PM using this link:\n" +
+          "Great! Please join the session tomorrow, 10 July at 10:00 AM using this link:\n" +
           MEET_LINK + "\n\n" +
           "We look forward to seeing you."
         );
@@ -333,6 +334,7 @@ app.post("/webhook", async (req, res) => {
         leadStatus = "Warm Lead";
         userStates.delete(phone);
       } else {
+        console.warn(`⚠️ Unmatched replyId in ST_AWAITING_CALL: "${replyId}"`);
         return;
       }
     } else if (userState.state === ST_AWAITING_ADMISSION_DETAILS) {
