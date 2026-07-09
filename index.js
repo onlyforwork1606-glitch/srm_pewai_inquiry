@@ -175,24 +175,41 @@ app.post("/webhook", async (req, res) => {
     let queryText = "";
 
     if (msg.type === "button") {
-      const text = (msg.button?.text || "").toUpperCase().trim();
-      if (text.includes("TOMORROW")) replyId = "ATTEND_TOMORROW";
-      else if (text.includes("POST")) replyId = "POST_MEETING_QUERY";
-      else if (text.includes("ATTEND") || text === "YES") replyId = "ATTEND_YES";
-      else if (text.includes("DETAIL")) replyId = "NEED_DETAILS";
-      else if (text.includes("GUIDANCE") || text.includes("ADMISSION")) replyId = "NEED_GUIDANCE";
-      else replyId = text;
+      const rawText = msg.button?.text || "";
+      const rawPayload = msg.button?.payload || "";
+      const sanitized = rawText.replace(/[\u200B-\u200D\uFEFF\u00A0]/g, "").trim();
+      const text = sanitized.toUpperCase();
+      const payload = rawPayload.toUpperCase().trim();
+
+      console.log(`🔍 Button | raw="${rawText}" | sanitized="${sanitized}" | payload="${rawPayload}"`);
+
+      if (text.includes("TOMORROW")) {
+        replyId = "ATTEND_TOMORROW";
+      } else if (text.includes("POST") || text.includes("SESSION QUERY")) {
+        replyId = "POST_MEETING_QUERY";
+      } else if (text.includes("ATTEND") || text === "YES") {
+        replyId = "ATTEND_YES";
+      } else if (text.includes("DETAIL")) {
+        replyId = "NEED_DETAILS";
+      } else if (text.includes("GUIDANCE") || text.includes("ADMISSION")) {
+        replyId = "NEED_GUIDANCE";
+      } else {
+        replyId = text;
+      }
     } else if (msg.type === "interactive") {
       const reply = msg.interactive?.button_reply || msg.interactive?.list_reply;
       replyId = reply?.id || "";
+
+      console.log(`🔍 Interactive | id="${replyId}" | title="${reply?.title || ""}"`);
     } else if (msg.type === "text") {
       queryText = msg.text?.body?.trim() || "";
     } else {
+      console.log(`🔍 Unhandled msg type: ${msg.type}`);
       return;
     }
 
     console.log(
-      `📥 ${name || phone} | state=${userState.state} | replyId=${replyId} | text="${queryText}"`
+      `📥 ${name || phone} | state=${userState.state} | replyId="${replyId}" | text="${queryText}"`
     );
 
     // ─────────────────────────────────────
