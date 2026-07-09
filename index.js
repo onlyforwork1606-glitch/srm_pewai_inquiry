@@ -39,6 +39,15 @@ const ST_AWAITING_ADMISSION_DETAILS = "AWAITING_ADMISSION_DETAILS";
 
 const MEET_LINK = "https://meet.google.com/mhq-uice-iuq";
 
+// ──────────────────────────────────────────
+// Post-meeting query time gate (10 July 2026, 11:00 AM IST)
+// ──────────────────────────────────────────
+const POST_MEETING_QUERY_UNLOCK = new Date("2026-07-10T11:00:00+05:30");
+
+function isPostMeetingQueryUnlocked() {
+  return new Date() >= POST_MEETING_QUERY_UNLOCK;
+}
+
 // ══════════════════════════════════════════
 //  WhatsApp Cloud API — Sending helpers
 // ══════════════════════════════════════════
@@ -166,9 +175,10 @@ app.post("/webhook", async (req, res) => {
     let queryText = "";
 
     if (msg.type === "button") {
-      // From template quick-reply buttons (the initial broadcast)
       const text = (msg.button?.text || "").toUpperCase().trim();
-      if (text.includes("ATTEND") || text === "YES") replyId = "ATTEND_YES";
+      if (text.includes("TOMORROW")) replyId = "ATTEND_TOMORROW";
+      else if (text.includes("POST")) replyId = "POST_MEETING_QUERY";
+      else if (text.includes("ATTEND") || text === "YES") replyId = "ATTEND_YES";
       else if (text.includes("DETAIL")) replyId = "NEED_DETAILS";
       else if (text.includes("GUIDANCE") || text.includes("ADMISSION")) replyId = "NEED_GUIDANCE";
       else replyId = text;
@@ -191,17 +201,52 @@ app.post("/webhook", async (req, res) => {
     let response = "";
     let leadStatus = "";
 
-    if (userState.state === ST_INITIAL) {
+    // Post-meeting query — time-gated, handled regardless of state
+    if (replyId === "POST_MEETING_QUERY" || replyId === "btn_post_meeting_query") {
+      if (isPostMeetingQueryUnlocked()) {
+        await sendTextMessage(
+          phone,
+          "Thank you for your query. Our team will get back to you shortly."
+        );
+        response = "Post Session Query";
+        leadStatus = "Post Session Query Received";
+      } else {
+        await sendTextMessage(
+          phone,
+          "This option will be available after the session on 10 July 2026 at 11:00 AM IST."
+        );
+        response = "Post Session Query (Early)";
+        leadStatus = "Not Available Yet";
+      }
+      userStates.delete(phone);
+    }
+
+    else if (userState.state === ST_INITIAL) {
       const lowerText = queryText.toLowerCase();
 
-      // Option 1: Yes, I will attend
+      // Option 1b: Yes, I will attend tomorrow
       if (
+        replyId === "ATTEND_TOMORROW" ||
+        (replyId !== "ATTEND_YES" && lowerText.includes("tomorrow"))
+      ) {
+        await sendTextMessage(
+          phone,
+          "Thank you for confirming. Please join the session on 10 July at 03:00 PM using this link:\n" +
+          MEET_LINK + "\n\n" +
+          "We recommend joining with your parents."
+        );
+        response = "Yes, I will attend tomorrow";
+        leadStatus = "Confirmed for Session";
+        userStates.delete(phone);
+      }
+      // Option 1a: Yes, I will attend
+      else if (
         replyId === "ATTEND_YES" ||
         lowerText.includes("attend") || lowerText === "yes"
       ) {
         await sendTextMessage(
           phone,
-          "Thank you for confirming. Please join the session on 11 July at 03:00 PM using this link:\n" +
+          "Thank you for confirming. Please join the session on 10 July at 03:00 PM using this link:\n" +
           MEET_LINK + "\n\n" +
           "We recommend joining with your parents."
         );
@@ -263,7 +308,7 @@ app.post("/webhook", async (req, res) => {
       } else if (replyId === "attend_session" || lowerText.includes("attend") || lowerText.includes("session")) {
         await sendTextMessage(
           phone,
-          "Great! Please join the session on 11 July at 03:00 PM using this link:\n" +
+          "Great! Please join the session on 10 July at 03:00 PM using this link:\n" +
           MEET_LINK + "\n\n" +
           "We look forward to seeing you."
         );
