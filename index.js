@@ -125,6 +125,10 @@ const TEXT_CAMPUS =
   "• Safe Residential Campus\n" +
   "Hostel Fee: ₹1,30,000 to ₹2,50,000 per year (depending on the room type and accommodation selected).";
 
+const TEXT_CALLBACK =
+  "Thank you for your interest in B.Tech CSE - Product Engineering with AI (PEWAI).\n\n" +
+  "An Admission Counsellor will contact you shortly to guide you through the admission process and answer your queries.";
+
 const TEXT_ELIGIBILITY =
   "Students who have completed Intermediate (MPC), CBSE or ICSE with the required minimum 60% percentage can apply.\n" +
   "Admissions are subject to SRM University AP norms.";
@@ -415,11 +419,7 @@ app.post("/webhook", async (req, res) => {
     if (userState.state === ST_MENU || replyId.startsWith("menu_")) {
       // Reserve seat — top-level, goes directly to admission team
       if (replyId === "menu_reserve_seat") {
-        await sendTextMessage(
-          phone,
-          "Thank you for your interest in B.Tech CSE - Product Engineering with AI (PEWAI).\n\n" +
-          "An Admission Counsellor will contact you shortly to guide you through the admission process and seat reservation."
-        );
+        await sendTextMessage(phone, TEXT_CALLBACK);
         await sendMainMenu(phone);
         response = "Reserve My Seat";
         leadStatus = "Seat Reservation Request";
@@ -434,10 +434,10 @@ app.post("/webhook", async (req, res) => {
 
       // Eligibility
       else if (replyId === "menu_eligibility") {
-        await sendTextMessage(phone, TEXT_ELIGIBILITY);
+        await sendTextMessage(phone, TEXT_CALLBACK);
         await sendMainMenu(phone);
         response = "Eligibility";
-        leadStatus = "";
+        leadStatus = "Eligibility Query";
         userState.state = ST_MENU;
       }
 
