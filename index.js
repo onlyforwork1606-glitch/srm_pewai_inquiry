@@ -434,10 +434,10 @@ app.post("/webhook", async (req, res) => {
 
       // Eligibility
       else if (replyId === "menu_eligibility") {
-        await sendTextMessage(phone, TEXT_CALLBACK);
+        await sendTextMessage(phone, TEXT_ELIGIBILITY);
         await sendMainMenu(phone);
         response = "Eligibility";
-        leadStatus = "Eligibility Query";
+        leadStatus = "";
         userState.state = ST_MENU;
       }
 
