@@ -408,15 +408,44 @@ app.post("/webhook", async (req, res) => {
       userStates.delete(phone);
     }
 
-    // ── Show main menu on first contact or explicit "menu" ──
+    // ── Show main menu on first contact, but route known keywords directly ──
     else if (userState.state === ST_INITIAL) {
-      await sendMainMenu(phone);
-      userState.state = ST_MENU;
-      return;
+      if (!replyId && queryText) {
+        const initText = lowerText(queryText);
+        if (initText.includes("reserve") || initText.includes("seat")) replyId = "menu_reserve_seat";
+        else if (initText.includes("about") || initText.includes("program")) replyId = "menu_about_program";
+        else if (initText.includes("eligibility")) replyId = "menu_eligibility";
+        else if (initText.includes("joined") || initText.includes("other") || initText.includes("another")) replyId = "menu_joined_other";
+        else if (initText.includes("back") || initText === "menu") replyId = "menu_back";
+        else if (initText.includes("detail") || initText.includes("curriculum")) replyId = "menu_program_details";
+        else if (initText.includes("fee") || initText.includes("cost") || initText.includes("tuition")) replyId = "menu_fee_details";
+        else if (initText.includes("placement") || initText.includes("career") || initText.includes("job")) replyId = "menu_placements";
+        else if (initText.includes("campus") || initText.includes("hostel")) replyId = "menu_campus";
+      }
+      if (replyId) {
+        userState.state = ST_MENU;
+      } else {
+        await sendMainMenu(phone);
+        userState.state = ST_MENU;
+        return;
+      }
     }
 
     // ── Menu state: route to the selected option ──
     if (userState.state === ST_MENU || replyId.startsWith("menu_")) {
+      // Map text keywords to menu IDs (handles typed replies)
+      if (!replyId && queryText) {
+        const txt = lowerText(queryText);
+        if (txt.includes("reserve") || txt.includes("seat")) replyId = "menu_reserve_seat";
+        else if (txt.includes("about") || txt.includes("program")) replyId = "menu_about_program";
+        else if (txt.includes("eligibility") || txt === "eligibility") replyId = "menu_eligibility";
+        else if (txt.includes("joined") || txt.includes("other") || txt.includes("another")) replyId = "menu_joined_other";
+        else if (txt.includes("back") || txt === "menu") replyId = "menu_back";
+        else if (txt.includes("details") || txt.includes("curriculum")) replyId = "menu_program_details";
+        else if (txt.includes("fee") || txt.includes("cost") || txt.includes("price") || txt.includes("tuition")) replyId = "menu_fee_details";
+        else if (txt.includes("placement") || txt.includes("career") || txt.includes("job")) replyId = "menu_placements";
+        else if (txt.includes("campus") || txt.includes("hostel")) replyId = "menu_campus";
+      }
       // Reserve seat — top-level, goes directly to admission team
       if (replyId === "menu_reserve_seat") {
         await sendTextMessage(phone, TEXT_CALLBACK);
