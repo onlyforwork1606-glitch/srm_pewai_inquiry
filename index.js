@@ -146,7 +146,7 @@ async function sendMainMenu(to) {
       "1️⃣ 🎯 Reserve My Seat\n" +
       "2️⃣ 📚 About the Program\n" +
       "3️⃣ 📋 Eligibility\n" +
-      "4️⃣ ❌ Joined Other College\n" +
+      "4️⃣  Joined Other College\n" +
       "5️⃣ 🔙 Back to Main Menu"
     );
   }
