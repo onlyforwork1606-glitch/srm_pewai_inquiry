@@ -420,10 +420,9 @@ app.post("/webhook", async (req, res) => {
       // Reserve seat — top-level, goes directly to admission team
       if (replyId === "menu_reserve_seat") {
         await sendTextMessage(phone, TEXT_CALLBACK);
-        await sendMainMenu(phone);
         response = "Reserve My Seat";
         leadStatus = "Seat Reservation Request";
-        userState.state = ST_MENU;
+        userStates.delete(phone);
       }
 
       // About the Program — opens sub-menu
@@ -435,10 +434,9 @@ app.post("/webhook", async (req, res) => {
       // Eligibility
       else if (replyId === "menu_eligibility") {
         await sendTextMessage(phone, TEXT_ELIGIBILITY);
-        await sendMainMenu(phone);
         response = "Eligibility";
         leadStatus = "";
-        userState.state = ST_MENU;
+        userStates.delete(phone);
       }
 
       // I Have Already Joined Another College
