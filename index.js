@@ -61,7 +61,7 @@ const MENU_OPTIONS = [
   { id: "menu_reserve_seat", title: "🎯 Reserve My Seat" },
   { id: "menu_about_program", title: "📚 About the Program" },
   { id: "menu_eligibility", title: "📋 Eligibility" },
-  { id: "menu_joined_other", title: "❌ Already Joined Another College" },
+  { id: "menu_joined_other", title: "❌ Joined Other College" },
 ];
 
 const SUBMENU_PROGRAM_OPTIONS = [
@@ -132,12 +132,31 @@ const TEXT_JOINED_OTHER =
 
 async function sendMainMenu(to) {
   await sendTextMessage(to, "Please choose an option from the menu below:");
-  await sendInteractiveList(to, "Select a topic", MENU_LIST_SECTIONS);
+  const ok = await sendInteractiveList(to, "Select a topic", MENU_LIST_SECTIONS);
+  if (!ok) {
+    await sendTextMessage(to,
+      "Please reply with a number:\n\n" +
+      "1️⃣ 🎯 Reserve My Seat\n" +
+      "2️⃣ 📚 About the Program\n" +
+      "3️⃣ 📋 Eligibility\n" +
+      "4️⃣ ❌ Joined Other College"
+    );
+  }
 }
 
 async function sendSubMenuProgram(to) {
   await sendTextMessage(to, "What would you like to know about the program?");
-  await sendInteractiveList(to, "About the Program", SUBMENU_LIST_SECTIONS);
+  const ok = await sendInteractiveList(to, "About the Program", SUBMENU_LIST_SECTIONS);
+  if (!ok) {
+    await sendTextMessage(to,
+      "Please reply with a number:\n\n" +
+      "1️⃣ 📘 Program Details\n" +
+      "2️⃣ 💰 Fee Details\n" +
+      "3️⃣ 🎓 Placements & Career\n" +
+      "4️⃣ 🏫 Campus & Hostel\n" +
+      "5️⃣ 🔙 Back to Main Menu"
+    );
+  }
 }
 
 // ══════════════════════════════════════════
@@ -211,6 +230,7 @@ async function sendInteractiveList(to, bodyText, sections) {
       BASE_URL,
       {
         messaging_product: "whatsapp",
+        recipient_type: "individual",
         to,
         type: "interactive",
         interactive: {
@@ -237,11 +257,14 @@ async function sendInteractiveList(to, bodyText, sections) {
       }
     );
     console.log(`📤 Sent interactive list to ${to}`);
+    return true;
   } catch (err) {
+    const detail = err.response?.data || err.message;
     console.error(
       `❌ Failed to send list to ${to}:`,
-      err.response?.data || err.message
+      JSON.stringify(detail, null, 2)
     );
+    return false;
   }
 }
 
@@ -343,6 +366,13 @@ app.post("/webhook", async (req, res) => {
     console.log(
       `📥 ${name || phone} | state=${userState.state} | replyId="${replyId}" | text="${queryText}"`
     );
+
+    // ── Map numeric text replies to menu IDs (fallback when interactive list fails) ──
+    if (!replyId && /^[1-5]$/.test(queryText)) {
+      const mainMap = { "1": "menu_reserve_seat", "2": "menu_about_program", "3": "menu_eligibility", "4": "menu_joined_other" };
+      const subMap = { "1": "menu_program_details", "2": "menu_fee_details", "3": "menu_placements", "4": "menu_campus", "5": "menu_back" };
+      replyId = userState.state === "SUBMENU_PROGRAM" ? (subMap[queryText] || "") : (mainMap[queryText] || "");
+    }
 
     // ─────────────────────────────────────
     //  Handle message based on state
