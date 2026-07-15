@@ -34,10 +34,15 @@ if (missing.length) {
 const userStates = new Map();
 
 const ST_INITIAL = "INITIAL";
+const ST_MENU = "MENU";
 const ST_AWAITING_CALL_DECISION = "AWAITING_CALL_DECISION";
 const ST_AWAITING_ADMISSION_DETAILS = "AWAITING_ADMISSION_DETAILS";
 
 const MEET_LINK = "https://meet.google.com/mhq-uice-iuq";
+
+function lowerText(s) {
+  return (s || "").toLowerCase();
+}
 
 // ──────────────────────────────────────────
 // Post-meeting query time gate (10 July 2026, 11:00 AM IST)
@@ -46,6 +51,93 @@ const POST_MEETING_QUERY_UNLOCK = new Date("2026-07-10T11:00:00+05:30");
 
 function isPostMeetingQueryUnlocked() {
   return new Date() >= POST_MEETING_QUERY_UNLOCK;
+}
+
+// ══════════════════════════════════════════
+//  Menu & response constants
+// ══════════════════════════════════════════
+
+const MENU_OPTIONS = [
+  { id: "menu_reserve_seat", title: "🎯 Reserve My Seat" },
+  { id: "menu_about_program", title: "📚 About the Program" },
+  { id: "menu_eligibility", title: "📋 Eligibility" },
+  { id: "menu_joined_other", title: "❌ Already Joined Another College" },
+];
+
+const SUBMENU_PROGRAM_OPTIONS = [
+  { id: "menu_program_details", title: "📘 Program Details" },
+  { id: "menu_fee_details", title: "💰 Fee Details" },
+  { id: "menu_placements", title: "🎓 Placements & Career" },
+  { id: "menu_campus", title: "🏫 Campus & Hostel" },
+  { id: "menu_back", title: "🔙 Back to Main Menu" },
+];
+
+const MENU_LIST_SECTIONS = [
+  {
+    title: "Choose an option",
+    rows: MENU_OPTIONS.map((o) => ({ id: o.id, title: o.title })),
+  },
+];
+
+const SUBMENU_LIST_SECTIONS = [
+  {
+    title: "About the Program",
+    rows: SUBMENU_PROGRAM_OPTIONS.map((o) => ({ id: o.id, title: o.title })),
+  },
+];
+
+const TEXT_PROGRAM_DETAILS =
+  "B.Tech CSE - Product Engineering with AI (PEWAI) is a next-generation Computer Science program offered by SRM University AP.\n\n" +
+  "The program combines:\n" +
+  "• Industry-led training by CCC experts\n" +
+  "• Artificial Intelligence & Product Engineering\n" +
+  "• Full Stack Development\n" +
+  "• Data Structures & Algorithms\n" +
+  "• Real-world Industry Projects\n" +
+  "• Internship Opportunities\n" +
+  "• Industry Certifications\n" +
+  "• Resume Building & AI Mock Interviews\n" +
+  "• Placement-focused training from Day One";
+
+const TEXT_FEE_DETAILS =
+  "Annual Tuition Fee: ₹4,60,000/year";
+
+const TEXT_PLACEMENTS =
+  "PEWAI prepares students for careers as:\n" +
+  "• AI Engineer\n" +
+  "• Software Engineer\n" +
+  "• Product Engineer\n" +
+  "• Full Stack Developer\n" +
+  "• Machine Learning Engineer\n" +
+  "• Data Engineer\n\n" +
+  "Students receive continuous placement preparation, mock interviews, coding practice and career mentoring throughout the program.";
+
+const TEXT_CAMPUS =
+  "SRM University AP offers:\n" +
+  "• Modern Smart Campus\n" +
+  "• Separate Boys & Girls Hostels\n" +
+  "• Sports & Recreation Facilities\n" +
+  "• Innovation Labs\n" +
+  "• Student Clubs\n" +
+  "• Research Opportunities\n" +
+  "• Safe Residential Campus";
+
+const TEXT_ELIGIBILITY =
+  "Students who have completed Intermediate (MPC), CBSE or ICSE with the required minimum 60% percentage can apply.\n" +
+  "Admissions are subject to SRM University AP norms.";
+
+const TEXT_JOINED_OTHER =
+  "Thank you for your response.\n" +
+  "We wish you all the very best for your engineering journey and future career.";
+
+async function sendMainMenu(to) {
+  await sendTextMessage(to, "Please choose an option from the menu below:");
+  await sendInteractiveList(to, "Select a topic", MENU_LIST_SECTIONS);
+}
+
+async function sendSubMenuProgram(to) {
+  await sendTextMessage(to, "What would you like to know about the program?");
+  await sendInteractiveList(to, "About the Program", SUBMENU_LIST_SECTIONS);
 }
 
 // ══════════════════════════════════════════
@@ -108,6 +200,46 @@ async function sendInteractiveButtons(to, bodyText, buttons) {
   } catch (err) {
     console.error(
       `❌ Failed to send buttons to ${to}:`,
+      err.response?.data || err.message
+    );
+  }
+}
+
+async function sendInteractiveList(to, bodyText, sections) {
+  try {
+    await axios.post(
+      BASE_URL,
+      {
+        messaging_product: "whatsapp",
+        to,
+        type: "interactive",
+        interactive: {
+          type: "list",
+          body: { text: bodyText },
+          action: {
+            button: "View Options",
+            sections: sections.map((s) => ({
+              title: s.title,
+              rows: s.rows.map((r) => ({
+                id: r.id,
+                title: r.title,
+                ...(r.description ? { description: r.description } : {}),
+              })),
+            })),
+          },
+        },
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${ACCESS_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    console.log(`📤 Sent interactive list to ${to}`);
+  } catch (err) {
+    console.error(
+      `❌ Failed to send list to ${to}:`,
       err.response?.data || err.message
     );
   }
@@ -238,28 +370,104 @@ app.post("/webhook", async (req, res) => {
       userStates.delete(phone);
     }
 
+    // ── Show main menu on first contact or explicit "menu" ──
     else if (userState.state === ST_INITIAL) {
-      const lowerText = queryText.toLowerCase();
+      await sendMainMenu(phone);
+      userState.state = ST_MENU;
+      return;
+    }
 
-      // Option 1b: Yes, I will attend tomorrow
-      if (
+    // ── Menu state: route to the selected option ──
+    if (userState.state === ST_MENU || replyId.startsWith("menu_")) {
+      // Reserve seat — top-level, goes directly to admission team
+      if (replyId === "menu_reserve_seat") {
+        await sendTextMessage(
+          phone,
+          "Thank you for your interest in B.Tech CSE - Product Engineering with AI (PEWAI).\n\n" +
+          "An Admission Counsellor will contact you shortly to guide you through the admission process and seat reservation."
+        );
+        response = "Reserve My Seat";
+        leadStatus = "Seat Reservation Request";
+        userStates.delete(phone);
+      }
+
+      // About the Program — opens sub-menu
+      else if (replyId === "menu_about_program") {
+        await sendSubMenuProgram(phone);
+        userState.state = "SUBMENU_PROGRAM";
+      }
+
+      // Eligibility
+      else if (replyId === "menu_eligibility") {
+        await sendTextMessage(phone, TEXT_ELIGIBILITY);
+        await sendMainMenu(phone);
+        response = "Eligibility";
+        leadStatus = "";
+        userState.state = ST_MENU;
+      }
+
+      // I Have Already Joined Another College
+      else if (replyId === "menu_joined_other") {
+        await sendTextMessage(phone, TEXT_JOINED_OTHER);
+        response = "Joined Another College";
+        leadStatus = "Lost Lead";
+        userStates.delete(phone);
+      }
+
+      // ── Sub-menu: About the Program ──
+      else if (replyId === "menu_program_details") {
+        await sendTextMessage(phone, TEXT_PROGRAM_DETAILS);
+        await sendSubMenuProgram(phone);
+        response = "Program Details";
+        leadStatus = "";
+      }
+
+      else if (replyId === "menu_fee_details") {
+        await sendTextMessage(phone, TEXT_FEE_DETAILS);
+        await sendSubMenuProgram(phone);
+        response = "Fee Details";
+        leadStatus = "";
+      }
+
+      else if (replyId === "menu_placements") {
+        await sendTextMessage(phone, TEXT_PLACEMENTS);
+        await sendSubMenuProgram(phone);
+        response = "Placements & Career";
+        leadStatus = "";
+      }
+
+      else if (replyId === "menu_campus") {
+        await sendTextMessage(phone, TEXT_CAMPUS);
+        await sendSubMenuProgram(phone);
+        response = "Campus & Hostel";
+        leadStatus = "";
+      }
+
+      // Back to main menu
+      else if (replyId === "menu_back") {
+        await sendMainMenu(phone);
+        userState.state = ST_MENU;
+        return;
+      }
+
+      // Legacy options kept for backward compatibility
+      else if (
         replyId === "ATTEND_TOMORROW" ||
-        (replyId !== "ATTEND_YES" && lowerText.includes("tomorrow"))
+        lowerText(queryText).includes("tomorrow")
       ) {
         await sendTextMessage(
           phone,
-          "Thank you for confirming. Please join the session tomorrow 1July at 10:00 AM using this link:\n" +
+          "Thank you for confirming. Please join the session tomorrow 1 July at 10:00 AM using this link:\n" +
           MEET_LINK + "\n\n" +
           "We recommend joining with your parents."
         );
         response = "Yes, I will attend tomorrow";
         leadStatus = "Confirmed for Session";
         userStates.delete(phone);
-      }
-      // Option 1a: Yes, I will attend
-      else if (
+      } else if (
         replyId === "ATTEND_YES" ||
-        lowerText.includes("attend") || lowerText === "yes"
+        lowerText(queryText).includes("attend") ||
+        lowerText(queryText) === "yes"
       ) {
         await sendTextMessage(
           phone,
@@ -270,11 +478,10 @@ app.post("/webhook", async (req, res) => {
         response = "Yes, I will attend";
         leadStatus = "Confirmed for Session";
         userStates.delete(phone);
-      }
-      // Option 2: Need more details
-      else if (
+      } else if (
         replyId === "NEED_DETAILS" ||
-        lowerText.includes("detail") || lowerText.includes("more info")
+        lowerText(queryText).includes("detail") ||
+        lowerText(queryText).includes("more info")
       ) {
         await sendTextMessage(
           phone,
@@ -291,11 +498,10 @@ app.post("/webhook", async (req, res) => {
         );
         userState.state = ST_AWAITING_CALL_DECISION;
         response = "Need more details";
-      }
-      // Option 3: Need admission guidance
-      else if (
+      } else if (
         replyId === "NEED_GUIDANCE" ||
-        lowerText.includes("guidance") || lowerText.includes("admission")
+        lowerText(queryText).includes("guidance") ||
+        lowerText(queryText).includes("admission")
       ) {
         await sendTextMessage(
           phone,
@@ -309,13 +515,46 @@ app.post("/webhook", async (req, res) => {
         userState.state = ST_AWAITING_ADMISSION_DETAILS;
         response = "Need Admission Guidance";
       } else {
-        console.warn(`⚠️ Unmatched replyId in ST_INITIAL: "${replyId}"`);
+        // Unknown selection — re-show current menu
+        await sendTextMessage(phone, "Sorry, I didn't understand that. Please choose from the menu below.");
+        if (userState.state === "SUBMENU_PROGRAM") {
+          await sendSubMenuProgram(phone);
+        } else {
+          await sendMainMenu(phone);
+        }
+        return;
+      }
+    } else if (userState.state === "SUBMENU_PROGRAM") {
+      // Also handle sub-menu selections when state is explicitly set
+      if (replyId === "menu_program_details") {
+        await sendTextMessage(phone, TEXT_PROGRAM_DETAILS);
+        await sendSubMenuProgram(phone);
+        response = "Program Details";
+      } else if (replyId === "menu_fee_details") {
+        await sendTextMessage(phone, TEXT_FEE_DETAILS);
+        await sendSubMenuProgram(phone);
+        response = "Fee Details";
+      } else if (replyId === "menu_placements") {
+        await sendTextMessage(phone, TEXT_PLACEMENTS);
+        await sendSubMenuProgram(phone);
+        response = "Placements & Career";
+      } else if (replyId === "menu_campus") {
+        await sendTextMessage(phone, TEXT_CAMPUS);
+        await sendSubMenuProgram(phone);
+        response = "Campus & Hostel";
+      } else if (replyId === "menu_back") {
+        await sendMainMenu(phone);
+        userState.state = ST_MENU;
+        return;
+      } else {
+        await sendTextMessage(phone, "Sorry, I didn't understand that. Please choose from the menu below.");
+        await sendSubMenuProgram(phone);
         return;
       }
     } else if (userState.state === ST_AWAITING_CALL_DECISION) {
-      const lowerText = queryText.toLowerCase();
+      const lower = lowerText(queryText);
 
-      if (replyId === "call_yes" || lowerText.includes("call") || lowerText.includes("yes") || lowerText.includes("call me")) {
+      if (replyId === "call_yes" || lower.includes("call") || lower.includes("yes") || lower.includes("call me")) {
         await sendTextMessage(
           phone,
           "Thank you. Our counsellor will reach out to you shortly."
@@ -323,10 +562,10 @@ app.post("/webhook", async (req, res) => {
         response = "Need more details → Yes, call me";
         leadStatus = "Counsellor Call Required";
         userStates.delete(phone);
-      } else if (replyId === "attend_session" || lowerText.includes("attend") || lowerText.includes("session")) {
+      } else if (replyId === "attend_session" || lower.includes("attend") || lower.includes("session")) {
         await sendTextMessage(
           phone,
-          "Great! Please join the session tomorrow, 10 July at 10:00 AM using this link:\n" +
+          "Great! Please join the session on 10 July at 10:00 AM using this link:\n" +
           MEET_LINK + "\n\n" +
           "We look forward to seeing you."
         );
