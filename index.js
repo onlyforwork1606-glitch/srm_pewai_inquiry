@@ -61,7 +61,8 @@ const MENU_OPTIONS = [
   { id: "menu_reserve_seat", title: "🎯 Reserve My Seat" },
   { id: "menu_about_program", title: "📚 About the Program" },
   { id: "menu_eligibility", title: "📋 Eligibility" },
-  { id: "menu_joined_other", title: "❌ Joined Other College" },
+  { id: "menu_joined_other", title: " Joined Other College" },
+  { id: "menu_back", title: "🔙 Back to Main Menu" },
 ];
 
 const SUBMENU_PROGRAM_OPTIONS = [
@@ -105,6 +106,7 @@ const TEXT_FEE_DETAILS =
 const TEXT_PLACEMENTS =
   "PEWAI prepares students for careers as:\n" +
   "• AI Engineer\n" +
+  "• Entrepreneur\n" +
   "• Software Engineer\n" +
   "• Product Engineer\n" +
   "• Full Stack Developer\n" +
@@ -120,7 +122,8 @@ const TEXT_CAMPUS =
   "• Innovation Labs\n" +
   "• Student Clubs\n" +
   "• Research Opportunities\n" +
-  "• Safe Residential Campus";
+  "• Safe Residential Campus\n" +
+  "Hostel Fee: ₹1,30,000 to ₹2,50,000 per year (depending on the room type and accommodation selected).";
 
 const TEXT_ELIGIBILITY =
   "Students who have completed Intermediate (MPC), CBSE or ICSE with the required minimum 60% percentage can apply.\n" +
@@ -139,7 +142,8 @@ async function sendMainMenu(to) {
       "1️⃣ 🎯 Reserve My Seat\n" +
       "2️⃣ 📚 About the Program\n" +
       "3️⃣ 📋 Eligibility\n" +
-      "4️⃣ ❌ Joined Other College"
+      "4️⃣ ❌ Joined Other College\n" +
+      "5️⃣ 🔙 Back to Main Menu"
     );
   }
 }
@@ -369,7 +373,7 @@ app.post("/webhook", async (req, res) => {
 
     // ── Map numeric text replies to menu IDs (fallback when interactive list fails) ──
     if (!replyId && /^[1-5]$/.test(queryText)) {
-      const mainMap = { "1": "menu_reserve_seat", "2": "menu_about_program", "3": "menu_eligibility", "4": "menu_joined_other" };
+      const mainMap = { "1": "menu_reserve_seat", "2": "menu_about_program", "3": "menu_eligibility", "4": "menu_joined_other", "5": "menu_back" };
       const subMap = { "1": "menu_program_details", "2": "menu_fee_details", "3": "menu_placements", "4": "menu_campus", "5": "menu_back" };
       replyId = userState.state === "SUBMENU_PROGRAM" ? (subMap[queryText] || "") : (mainMap[queryText] || "");
     }
@@ -416,9 +420,10 @@ app.post("/webhook", async (req, res) => {
           "Thank you for your interest in B.Tech CSE - Product Engineering with AI (PEWAI).\n\n" +
           "An Admission Counsellor will contact you shortly to guide you through the admission process and seat reservation."
         );
+        await sendMainMenu(phone);
         response = "Reserve My Seat";
         leadStatus = "Seat Reservation Request";
-        userStates.delete(phone);
+        userState.state = ST_MENU;
       }
 
       // About the Program — opens sub-menu
@@ -545,8 +550,7 @@ app.post("/webhook", async (req, res) => {
         userState.state = ST_AWAITING_ADMISSION_DETAILS;
         response = "Need Admission Guidance";
       } else {
-        // Unknown selection — re-show current menu
-        await sendTextMessage(phone, "Sorry, I didn't understand that. Please choose from the menu below.");
+        // Unknown selection — re-show current menu silently
         if (userState.state === "SUBMENU_PROGRAM") {
           await sendSubMenuProgram(phone);
         } else {
@@ -577,7 +581,6 @@ app.post("/webhook", async (req, res) => {
         userState.state = ST_MENU;
         return;
       } else {
-        await sendTextMessage(phone, "Sorry, I didn't understand that. Please choose from the menu below.");
         await sendSubMenuProgram(phone);
         return;
       }
