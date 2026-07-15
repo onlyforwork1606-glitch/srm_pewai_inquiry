@@ -343,10 +343,25 @@ app.post("/webhook", async (req, res) => {
       const sanitized = rawText.replace(/[\u200B-\u200D\uFEFF\u00A0]/g, "").trim();
       const text = sanitized.toUpperCase();
       const payload = rawPayload.toUpperCase().trim();
+      const normalizedText = lowerText(sanitized);
+      const normalizedPayload = lowerText(rawPayload);
 
       console.log(`🔍 Button | raw="${rawText}" | sanitized="${sanitized}" | payload="${rawPayload}"`);
 
-      if (text.includes("TOMORROW")) {
+      if (normalizedText.includes("reserve") || normalizedPayload.includes("reserve")) {
+        replyId = "menu_reserve_seat";
+      } else if (normalizedText.includes("about the program") || normalizedPayload.includes("about the program")) {
+        replyId = "menu_about_program";
+      } else if (normalizedText.includes("eligibility") || normalizedPayload.includes("eligibility")) {
+        replyId = "menu_eligibility";
+      } else if (
+        normalizedText.includes("joined another college") ||
+        normalizedText.includes("already joined") ||
+        normalizedPayload.includes("joined another college") ||
+        normalizedPayload.includes("already joined")
+      ) {
+        replyId = "menu_joined_other";
+      } else if (text.includes("TOMORROW")) {
         replyId = "ATTEND_TOMORROW";
       } else if (text.includes("POST") || text.includes("SESSION QUERY")) {
         replyId = "POST_MEETING_QUERY";
