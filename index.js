@@ -103,7 +103,8 @@ const TEXT_FEE_DETAILS =
   "Annual Tuition Fee: ₹4,60,000/year";
 
 const TEXT_PLACEMENTS =
-  "PEWAI prepares students for careers as:\n" +
+  "PEWAI prepares students for high-growth careers with opportunities of ₹20+ LPA\n" +
+  "Career pathway include:\n" +
   "• AI Engineer\n" +
   "• Entrepreneur\n" +
   "• Software Engineer\n" +
