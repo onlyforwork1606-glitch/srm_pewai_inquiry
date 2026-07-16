@@ -69,7 +69,6 @@ const SUBMENU_PROGRAM_OPTIONS = [
   { id: "menu_program_details", title: "📘 Program Details" },
   { id: "menu_fee_details", title: "💰 Fee Details" },
   { id: "menu_placements", title: "🎓 Placements & Career" },
-  { id: "menu_campus", title: "🏫 Campus & Hostel" },
   { id: "menu_back", title: "🔙 Back to Main Menu" },
 ];
 
@@ -161,8 +160,7 @@ async function sendSubMenuProgram(to) {
       "1️⃣ 📘 Program Details\n" +
       "2️⃣ 💰 Fee Details\n" +
       "3️⃣ 🎓 Placements & Career\n" +
-      "4️⃣ 🏫 Campus & Hostel\n" +
-      "5️⃣ 🔙 Back to Main Menu"
+      "4️⃣ 🔙 Back to Main Menu"
     );
   }
 }
@@ -513,13 +511,6 @@ app.post("/webhook", async (req, res) => {
         leadStatus = "";
       }
 
-      else if (replyId === "menu_campus") {
-        await sendTextMessage(phone, TEXT_CAMPUS);
-        await sendSubMenuProgram(phone);
-        response = "Campus & Hostel";
-        leadStatus = "";
-      }
-
       // Back to main menu
       else if (replyId === "menu_back") {
         await sendMainMenu(phone);
@@ -614,10 +605,6 @@ app.post("/webhook", async (req, res) => {
         await sendTextMessage(phone, TEXT_PLACEMENTS);
         await sendSubMenuProgram(phone);
         response = "Placements & Career";
-      } else if (replyId === "menu_campus") {
-        await sendTextMessage(phone, TEXT_CAMPUS);
-        await sendSubMenuProgram(phone);
-        response = "Campus & Hostel";
       } else if (replyId === "menu_back") {
         await sendMainMenu(phone);
         userState.state = ST_MENU;
