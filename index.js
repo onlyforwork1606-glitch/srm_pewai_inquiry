@@ -103,16 +103,16 @@ const TEXT_FEE_DETAILS =
   "Annual Tuition Fee: ₹4,60,000/year";
 
 const TEXT_PLACEMENTS =
-  "PEWAI prepares students for high-growth careers with opportunities of ₹20+ LPA\n" +
-  "Career pathway include:\n" +
+  "Built for students aspiring to compete for ₹20 LPA to ₹1 Crore+ career opportunities at the world’s leading technology companies and AI-first organisations.\n\n" +
+  "PEWAI prepares students for careers as:\n" +
   "• AI Engineer\n" +
-  "• Entrepreneur\n" +
-  "• Software Engineer\n" +
   "• Product Engineer\n" +
+  "• Software Engineer\n" +
   "• Full Stack Developer\n" +
   "• Machine Learning Engineer\n" +
-  "• Data Engineer\n\n" +
-  "Students receive continuous placement preparation, mock interviews, coding practice and career mentoring throughout the program.";
+  "• Data Engineer\n" +
+  "• Technology Entrepreneur\n\n" +
+  "Students gain multiple internship opportunities from their second year onwards, alongside continuous industry mentoring, competitive coding, product engineering, AI projects, mock interviews, technical interview preparation and career coaching throughout the programme.";
 
 const TEXT_CAMPUS =
   "SRM University AP offers:\n" +
